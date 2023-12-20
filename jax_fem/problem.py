@@ -330,33 +330,39 @@ class Problem:
             kernel_jac_face = jax.jit(jax.vmap(kernel_jac_face))
             self.kernel_face.append(kernel_face)
             self.kernel_jac_face.append(kernel_jac_face)
+    
 
     @timeit
     def split_and_compute_cell(self, cells_sol_flat, np_version, jac_flag, internal_vars):
         """Volume integral in weak form
         """
+        def slice_element(x, start, end):
+            if isinstance(x, float):
+                return np.full((end-start,8), x)  # Do nothing for sig0
+            else:
+                return x[start:end]
         vmap_fn = self.kernel_jac if jac_flag else self.kernel
         num_cuts = 20
         if num_cuts > self.num_cells:
             num_cuts = self.num_cells
         batch_size = self.num_cells // num_cuts
         input_collection = [cells_sol_flat, self.physical_quad_points, self.shape_grads, self.JxW, self.v_grads_JxW, *internal_vars]
-
         if jac_flag:
             values = []
             jacs = []
             for i in range(num_cuts):
                 if i < num_cuts - 1:
-                    input_col = jax.tree_map(lambda x: x[i * batch_size:(i + 1) * batch_size], input_collection)
+                    input_col = jax.tree_map(lambda x: slice_element(x, i * batch_size, (i + 1) * batch_size), input_collection)
+                    #input_col = jax.tree_map(lambda x: x[i * batch_size:(i + 1) * batch_size], input_collection)
                 else:
-                    input_col = jax.tree_map(lambda x: x[i * batch_size:], input_collection)
+                    input_col = jax.tree_map(lambda x: slice_element(x, i * batch_size, input_collection[0].shape[0]), input_collection)
+                    #input_col = jax.tree_map(lambda x: x[i * batch_size:], input_collection)
 
                 val, jac = vmap_fn(*input_col)
                 values.append(val)
                 jacs.append(jac)
             values = np_version.vstack(values)
             jacs = np_version.vstack(jacs)
-
             return values, jacs
         else:
             values = []

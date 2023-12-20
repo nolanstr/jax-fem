@@ -386,7 +386,6 @@ def solver_row_elimination(problem, linear, precond, initial_guess, use_petsc, p
     start = time.time()
 
     dofs = np.zeros(problem.num_total_dofs_all_vars)
-
     def newton_update_helper(dofs):
         sol_list = problem.unflatten_fn_sol_list(dofs)
         res_list = problem.newton_update(sol_list)
